@@ -5,22 +5,24 @@ use strict;
 use warnings FATAL => 'all';
 use diagnostics;
 use Net::Ping;
-use Net::SSH qw(sshopen2); # https://metacpan.org/pod/Net::SSH
+use Net::SSH qw(sshopen2);    # https://metacpan.org/pod/Net::SSH
 use Net::SSH::Perl;
+use POSIX qw(strftime);
 
 my @inarray;
 my @merged;
 my @array1;
 my @array2;
 my @array3;
-my @host = ("wiki.afk47.org","workbench.afk47.org");
+my @host = ( "wiki.afk47.org", "workbench.afk47.org", "fakehost.afk47.org" );
+my @deadarray;
 my $FH0;
-my $fLineCnt="0";
+my $fLineCnt = "0";
 my $p;
-my $user="mike";
-my $command = "uptime|sed \'s/.*up \\([^,]*\\), .*/\\1/\'";
-my $command2 = "yum -q check-update"; # Ideally we need to catch code 0 for nothing 100 for something and 1 for error
-my $command3 = "uptime|sed \'s/.*up \\([^,]*\\), .*/\\1/\'|tr -d '\\n' && yum -q check-update >/dev/null 2>&1";
+my $user = "mike";
+my $command = "uptime|sed \'s/.*up \\([^,]*\\), .*/\\1/\'|tr -d '\\n' && yum -q check-update >/dev/null 2>&1";
+my $file = "/mnt/c/Users/mike/OneDrive/Desktop/test.html";
+my $date = strftime "%F %H:%M", localtime;
 
 # Main
 &PingTest();
@@ -29,10 +31,11 @@ my $command3 = "uptime|sed \'s/.*up \\([^,]*\\), .*/\\1/\'|tr -d '\\n' && yum -q
 sub PingTest {
     foreach (@host) {
         $p = Net::Ping->new("syn");
-        if($p->ping($_)) {
+        if ( $p->ping($_) ) {
             &GetData();
-        }else{
-            print "$_ is not alive\n";
+        }
+        else {
+            push( @deadarray, $_ );
         }
     }
     $p->close();
@@ -41,33 +44,43 @@ sub PingTest {
 
 sub GetData {
     my $value1 = "$_";
-    my $ssh = Net::SSH::Perl->new($_);
-     $ssh->login($user);
-     my($out, $err, $exit) = $ssh->cmd($command3);
-     print "$_\n";
-     print "$out\n";
-     print "$exit\n";
+    my $ssh    = Net::SSH::Perl->new($_);
+    $ssh->login($user);
+    my ( $out, $err, $exit ) = $ssh->cmd($command);
 
-     push(@array1, $_);
-     push(@array2, $out);
-     if($exit == '100') {
-	     push(@array3, "<span style=\"background-color: #ff0000\">Updates Pending</span>");
-	     print "Got code $exit should be 100\n";
-     } elsif($exit == '0') {
-	     push(@array3, "<span style=\"background-color: #00ff77\">Patched</span>");
-	     print "Got code $exit should be 0\n";
-     }else{ 
-	     push(@array3, "<span style=\"background-color: #ff9900\">ERROR!</span>");
-	     print "Got code $exit should be 1 or anything but 100 or 0\n";
-     }
+    #print "$_\n"; 	#
+    #print "$out\n";	# Debugging
+    #print "$exit\n";	#
 
-     @merged = (\@array1, \@array2, \@array3);
+    push( @array1, $_ );
+    push( @array2, $out );
+    if ( $exit == '100' ) {
+        push( @array3, "<span style=\"background-color: #ff0000\">Updates Pending</span>"
+        );
+
+        # print "Debugging: Got code $exit should be 100\n";
+    }
+    elsif ( $exit == '0' ) {
+        push( @array3, "<span style=\"background-color: #00ff77\">Patched</span>" );
+
+        # print "Debugging: Got code $exit should be 0\n";
+    }
+    else {
+        push( @array3, "<span style=\"background-color: #ff9900\">ERROR!</span>" );
+
+      #print "Debugging: Got code $exit should be 1 or anything but 100 or 0\n";
+    }
+
+    @merged = ( \@array1, \@array2, \@array3 );
 
 }
 
 sub PrintData {
-    print "Content-type: text/html\n\n";
-    print <<"EOF";
+
+    open( FH, '>>', $file ) or die $!;
+
+    print FH "Content-type: text/html\n\n";
+    print FH <<"EOF";
     <HTML>
     <HEAD>
         <TITLE>Pasacon host report</TITLE>
@@ -86,17 +99,30 @@ sub PrintData {
     </style>
     <BODY>
         <H1>Report Data:</H1>
-        <table>
+	<H2>Generated $date</H2>
+	<table>
         <tr>
             <th>Host</th>
             <th>Uptime</th>
             <th>Patch Status</th>
         </tr>
 EOF
-    foreach my $i (0..$#{$merged[0]}) {
-        print ("<tr><td>",$merged[0][$i],"</td><td>",$merged[1][$i],"</td><td>",$merged[2][$i],"</tr>\n");
+    foreach my $i ( 0 .. $#{ $merged[0] } ) {
+        print FH (
+            "<tr><td>",  $merged[0][$i], "</td><td>", $merged[1][$i],
+            "</td><td>", $merged[2][$i], "</tr>\n"
+        );
     }
 
-    print "</table>\n";
-    print "</body>\n</html>";
+    if (@deadarray) {
+        print FH "Warning - the following hosts couldn't be reached:";
+        foreach (@deadarray) {
+            print FH ("$_ \<br \/\>");
+        }
+    }
+
+    print FH "</table>\n";
+    print FH "</body>\n</html>";
+
+    close(FH);
 }
