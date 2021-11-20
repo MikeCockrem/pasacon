@@ -23,10 +23,21 @@ my $user = "mike";
 my $command = "uptime|sed \'s/.*up \\([^,]*\\), .*/\\1/\'|tr -d '\\n' && yum -q check-update >/dev/null 2>&1";
 my $file = "/mnt/c/Users/mike/OneDrive/Desktop/test.html";
 my $date = strftime "%F %H:%M", localtime;
+my $quiet = "0";
 
-# Main
+## Main ##
+
+if ( $quiet == "1" ) {
+open (my $STDOLD, '>&', STDOUT);
+open (my $STERR, '>&', STDERR);
+open (STDERR, '>', '/dev/null');
+open (STDERR, '>', '/dev/null');
+}
+
 &PingTest();
 &PrintData();
+
+## Subroutines ##
 
 sub PingTest {
     foreach (@host) {
@@ -55,18 +66,18 @@ sub GetData {
     push( @array1, $_ );
     push( @array2, $out );
     if ( $exit == '100' ) {
-        push( @array3, "<span style=\"background-color: #ff0000\">Updates Pending</span>"
+        push( @array3, "<td style=\"background-color: #ff9900\">Updates Pending</td>"
         );
 
         # print "Debugging: Got code $exit should be 100\n";
     }
     elsif ( $exit == '0' ) {
-        push( @array3, "<span style=\"background-color: #00ff77\">Patched</span>" );
+        push( @array3, "<td style=\"background-color: #00ff77\">Patched</td>" );
 
         # print "Debugging: Got code $exit should be 0\n";
     }
     else {
-        push( @array3, "<span style=\"background-color: #ff9900\">ERROR!</span>" );
+        push( @array3, "<td style=\"background-color: #ff0000\">ERROR!</td>" );
 
       #print "Debugging: Got code $exit should be 1 or anything but 100 or 0\n";
     }
@@ -110,14 +121,17 @@ EOF
     foreach my $i ( 0 .. $#{ $merged[0] } ) {
         print FH (
             "<tr><td>",  $merged[0][$i], "</td><td>", $merged[1][$i],
-            "</td><td>", $merged[2][$i], "</tr>\n"
-        );
+             $merged[2][$i], "</tr>\n"
+        
+    );
     }
-
     if (@deadarray) {
-        print FH "Warning - the following hosts couldn't be reached:";
         foreach (@deadarray) {
-            print FH ("$_ \<br \/\>");
+            print FH (
+            "<tr><td>", $_, 
+            "</td><td colspan=2, style=\"background-color: #ff0000\">",
+            "OFFLINE", "</td></tr>\n"
+            );
         }
     }
 
