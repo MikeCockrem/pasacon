@@ -135,3 +135,7 @@ EOF
 
     close(FH);
 }
+
+sub unixtime {
+#date -d "$(who -b | awk '{print $4,$3}')" +%s
+}
